@@ -151,7 +151,7 @@ parameters:
   - name: HOSTNAME
     required: true
   - name: PROXYSSL
-    value: "true"
+    required: true
   - name: SSL
     required: true
   - name: NAMESPACE
