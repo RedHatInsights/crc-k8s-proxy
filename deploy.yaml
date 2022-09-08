@@ -1,36 +1,37 @@
-apiVersion: v1
+apiVersion: template.openshift.io/v1
 kind: Template
 metadata:
-  name: crc-k8s-proxy
+  name: hac-proxy
 objects:
 - apiVersion: v1
   kind: Secret
   type: Opaque
   metadata:
-    name: crc-k8s-proxy
+    name: cluster-login-data
   stringData:
     k8surl: ${K8SURL}
     token: ${TOKEN}
-    ssl: "true"
+    ssl: ${SSL}
     keycloak: ${KEYCLOAK_URL}
     proxyssl: ${PROXYSSL}
 - apiVersion: v1
   kind: Service
   metadata:
     annotations:
-      service.beta.openshift.io/serving-cert-secret-name: crc-k8s-proxy-cert
-    name: crc-k8s-proxy
+      service.beta.openshift.io/serving-cert-secret-name: hac-proxy-cert
+    name: hac-proxy
+    namespace: ${NAMESPACE}
   spec:
     internalTrafficPolicy: Cluster
     ipFamilies:
       - IPv4
     ipFamilyPolicy: SingleStack
     ports:
-      - port: 8000
+      - port: 8080
         protocol: TCP
-        targetPort: 8000
+        targetPort: 8080
     selector:
-      app: crc-k8s-proxy
+      app: hac-proxy
     sessionAffinity: None
     type: ClusterIP
 - apiVersion: networking.k8s.io/v1
@@ -38,10 +39,10 @@ objects:
   metadata:
     annotations:
       haproxy.router.openshift.io/rewrite-target: /
-      route.openshift.io/termination: reencrypt
     labels:
-      frontend: crc-k8s-proxy
-    name: crc-k8s-proxy
+      frontend: hac-proxy
+    name: hac-proxy
+    namespace: ${NAMESPACE}
   spec:
     ingressClassName: openshift-default
     rules:
@@ -52,22 +53,30 @@ objects:
               pathType: Prefix
               backend:
                 service:
-                  name: crc-k8s-proxy
+                  name: hac-proxy
                   port:
-                    number: 8000
+                    number: 8080
+            - path: /wss/k8s
+              pathType: Prefix
+              backend:
+                service:
+                  name: hac-proxy
+                  port:
+                    number: 8080
     tls:
       - {}
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    name: crc-k8s-proxy
+    name: hac-proxy
+    namespace: ${NAMESPACE}
   spec:
     progressDeadlineSeconds: 600
     replicas: 1
     revisionHistoryLimit: 10
     selector:
       matchLabels:
-        app: crc-k8s-proxy
+        app: hac-proxy
     strategy:
       rollingUpdate:
         maxSurge: 25%
@@ -76,40 +85,44 @@ objects:
     template:
       metadata:
         labels:
-          app: crc-k8s-proxy
+          app: hac-proxy
       spec:
         containers:
           - env:
               - name: HJ_K8S
                 valueFrom:
                   secretKeyRef:
-                    name: crc-k8s-proxy
+                    name: cluster-login-data
                     key: k8surl
               - name: HJ_TOKEN
                 valueFrom:
                   secretKeyRef:
-                    name: crc-k8s-proxy
+                    name: cluster-login-data
                     key: token
+              - name: HJ_MODE
+                value: complex
               - name: HJ_KEYCLOAK
                 valueFrom:
                   secretKeyRef:
-                    name: crc-k8s-proxy
+                    name: cluster-login-data
                     key: keycloak
+              - name: HJ_SERVE
+                value: :8080
               - name: HJ_SSL
                 valueFrom:
                   secretKeyRef:
-                    name: crc-k8s-proxy
+                    name: cluster-login-data
                     key: ssl
               - name: HJ_PROXY_SSL
                 valueFrom:
                   secretKeyRef:
-                    name: crc-k8s-proxy
+                    name: cluster-login-data
                     key: proxyssl
-            image: quay.io/psav/crc-k8s-proxy:po8
+            image: quay.io/psav/hac-proxy:098a9d8
             imagePullPolicy: Always
-            name: crc-k8s-proxy
+            name: hac-proxy
             ports:
-              - containerPort: 8000
+              - containerPort: 8080
                 protocol: TCP
             resources: {}
             terminationMessagePath: /dev/termination-log
@@ -127,7 +140,7 @@ objects:
           - name: cert
             secret:
               defaultMode: 420
-              secretName: crc-k8s-proxy-cert
+              secretName: hac-proxy-cert
 parameters:
   - name: K8SURL
     required: true
@@ -139,3 +152,7 @@ parameters:
     required: true
   - name: PROXYSSL
     value: "true"
+  - name: SSL
+    required: true
+  - name: NAMESPACE
+    required: true
