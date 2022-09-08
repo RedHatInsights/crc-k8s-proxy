@@ -28,7 +28,9 @@ K8SURL=<full k8s cluster url>
 TOKEN=<token for k8s auth>
 KEYCLOAK_URL=https://<hostname-prefix>-auth.<hostname suffix domain>/auth/realms/redhat-external
 HOSTNAME=<hostname from above>
-PROXYSSL=true
+SSL=false
+PROXYSSL=<true for hac-ephem, false for app studio standalone>
+NAMESPACE=<namespace from above>
 ```
 Deploy HAC frontend
 ```
